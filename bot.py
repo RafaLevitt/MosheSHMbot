@@ -4,15 +4,16 @@ from aiogram.types import ParseMode
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.utils import executor
 
-API_TOKEN = '7720527686:AAEx12QnjHKTbABTAlFXvpkYG7IYKp1CD8E'  # Вставь свой токен от BotFather
+# Токен бота, полученный через BotFather
+API_TOKEN = '7720527686:AAEx12QnjHKTbABTAlFXvpkYG7IYKp1CD8E'
 
-# Секретный пароль для админки
-admin_password = 'FDaYgk0tguCE6FMD'  # Твой сгенерированный пароль
+# Пароль для админки
+admin_password = 'Sad78Verkiai123'  # Заменить на свой пароль
 
 # Список участников и их статуса (нажали ли они «Готово»)
 users_in_game = {}
 
-# Фразы для выдачи
+# Фразы для выдачи пользователям
 phrases = [
     "Первая фраза: Успех не приходит случайно.",
     "Вторая фраза: Верь в себя и твои мечты сбудутся.",
