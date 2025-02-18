@@ -4,7 +4,7 @@ from aiogram.types import ParseMode
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.utils import executor
 
-API_TOKEN = 'ТВОЙ_ТОКЕН_БОТА'  # Вставь свой токен от BotFather
+API_TOKEN = '7720527686:AAEx12QnjHKTbABTAlFXvpkYG7IYKp1CD8E'  # Вставь свой токен от BotFather
 
 # Секретный пароль для админки
 admin_password = 'FDaYgk0tguCE6FMD'  # Твой сгенерированный пароль
