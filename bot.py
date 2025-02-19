@@ -1,7 +1,6 @@
 import logging
 import os
 import asyncio
-
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
 from aiogram.filters import CommandStart
@@ -11,10 +10,13 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=os.getenv("TELEGRAM_API_TOKEN"))
+# Set up proxy if needed (example proxy URL)
+PROXY_URL = "http://your_proxy_address:port"  # Replace with your actual proxy URL
+
+bot = Bot(token=os.getenv("TELEGRAM_API_TOKEN"), proxy=PROXY_URL)
 dp = Dispatcher()
 
-# Данные игры
+# Game data
 users_in_game = {}
 team_tasks = {
     "team1": {1: ("Задание 1 для команды 1", "ответ1"), 2: ("Задание 2 для команды 1", "ответ2"), 3: ("Задание 3 для команды 1", "ответ3")},
@@ -25,11 +27,11 @@ team_tasks = {
 }
 
 admin_password = os.getenv("ADMIN_PASSWORD")
-admin_users = set()  # Список админов после входа в панель
+admin_users = set()  # Admin users list after login
 
 @dp.message(CommandStart())
 async def start_game(message: Message):
-    """Запуск игры - регистрация игрока."""
+    """Start the game - player registration."""
     user_id = message.from_user.id
     if user_id not in users_in_game:
         users_in_game[user_id] = {"team": None, "progress": {1: False, 2: False, 3: False}}
@@ -39,7 +41,7 @@ async def start_game(message: Message):
 
 @dp.message(F.text.startswith("/admin"))
 async def admin_login(message: Message):
-    """Авторизация в админ-панели."""
+    """Admin panel login."""
     user_id = message.from_user.id
     _, entered_password = message.text.split(" ", 1) if " " in message.text else ("", "")
 
@@ -51,7 +53,7 @@ async def admin_login(message: Message):
 
 @dp.message(F.text == "/vseloxi")
 async def wipe_vars(message: Message):
-    """Сброс данных (только для админов)."""
+    """Reset game data (for admins only)."""
     if message.from_user.id in admin_users:
         global users_in_game
         users_in_game = {}
@@ -61,7 +63,7 @@ async def wipe_vars(message: Message):
 
 @dp.message(F.text.startswith("team"))
 async def choose_team(message: Message):
-    """Выбор команды."""
+    """Choose a team."""
     user_id = message.from_user.id
     team = message.text.lower()
 
@@ -73,15 +75,15 @@ async def choose_team(message: Message):
 
 @dp.message(F.text.startswith("/"))
 async def handle_command(message: Message):
-    """Обработчик команд, чтобы они не проверялись как ответы."""
-    pass  # Игнорируем команды в общем обработчике
+    """Command handler (ignores commands as answers)."""
+    pass  # Ignore commands here
 
 @dp.message()
 async def check_answer(message: Message):
-    """Проверка ответа пользователя."""
+    """Check the user's answer."""
     user_id = message.from_user.id
     if user_id not in users_in_game or users_in_game[user_id]["team"] is None:
-        return  # Игнорируем сообщения, если пользователь не выбрал команду
+        return  # Ignore messages if user hasn't selected a team
 
     team = users_in_game[user_id]["team"]
     for level, (task_text, correct_answer) in team_tasks[team].items():
@@ -101,9 +103,10 @@ async def check_answer(message: Message):
             return
 
 async def main():
-    """Запуск бота."""
+    """Run the bot."""
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
