@@ -3,7 +3,7 @@ import os
 import asyncio
 
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, InputFile
+from aiogram.types import Message
 from aiogram.filters import CommandStart
 from dotenv import load_dotenv
 
@@ -12,7 +12,6 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=os.getenv("TELEGRAM_API_TOKEN"))
-
 dp = Dispatcher()
 
 # Данные игры
@@ -26,18 +25,43 @@ team_tasks = {
 }
 
 admin_password = os.getenv("ADMIN_PASSWORD")
+admin_users = set()  # Список админов после входа в панель
 
 @dp.message(CommandStart())
 async def start_game(message: Message):
+    """Запуск игры - регистрация игрока."""
     user_id = message.from_user.id
     if user_id not in users_in_game:
         users_in_game[user_id] = {"team": None, "progress": {1: False, 2: False, 3: False}}
-        await message.answer("Привет! Введи свою команду: team1, team2, team3, team4 или team5")
+        await message.answer("Привет! Введи свою команду: team1, team2, team3, team4 или team5.")
     else:
         await message.answer("Ты уже в игре!")
 
+@dp.message(F.text.startswith("/admin"))
+async def admin_login(message: Message):
+    """Авторизация в админ-панели."""
+    user_id = message.from_user.id
+    _, entered_password = message.text.split(" ", 1) if " " in message.text else ("", "")
+
+    if entered_password == admin_password:
+        admin_users.add(user_id)
+        await message.answer("✅ Ты вошел в админ-панель. Теперь можешь использовать /vseloxi")
+    else:
+        await message.answer("❌ Неверный пароль!")
+
+@dp.message(F.text == "/vseloxi")
+async def wipe_vars(message: Message):
+    """Сброс данных (только для админов)."""
+    if message.from_user.id in admin_users:
+        global users_in_game
+        users_in_game = {}
+        await message.answer("✅ Все данные сброшены.")
+    else:
+        await message.answer("❌ У тебя нет прав для этой команды.")
+
 @dp.message(F.text.startswith("team"))
 async def choose_team(message: Message):
+    """Выбор команды."""
     user_id = message.from_user.id
     team = message.text.lower()
 
@@ -47,29 +71,37 @@ async def choose_team(message: Message):
     else:
         await message.answer("Такой команды нет. Выбери team1 - team5.")
 
+@dp.message(F.text.startswith("/"))
+async def handle_command(message: Message):
+    """Обработчик команд, чтобы они не проверялись как ответы."""
+    pass  # Игнорируем команды в общем обработчике
+
 @dp.message()
 async def check_answer(message: Message):
+    """Проверка ответа пользователя."""
     user_id = message.from_user.id
     if user_id not in users_in_game or users_in_game[user_id]["team"] is None:
-        await message.answer("Ты не в игре или не выбрал команду!")
-        return
+        return  # Игнорируем сообщения, если пользователь не выбрал команду
 
     team = users_in_game[user_id]["team"]
-    for level in range(1, 4):
+    for level, (task_text, correct_answer) in team_tasks[team].items():
         if not users_in_game[user_id]["progress"][level]:
-            correct_answer = team_tasks[team][level][1]
             if message.text.lower().strip() == correct_answer.lower():
                 users_in_game[user_id]["progress"][level] = True
-                await message.answer(f"Молодец! Ты прошел {level}-е задание.")
-                if level < 3:
-                    await message.answer(f"Следующее задание: {team_tasks[team][level + 1][0]}")
+                next_msg = f"Молодец! Ты прошел {level}-е задание."
+
+                if level < len(team_tasks[team]):
+                    next_msg += f"\nСледующее задание: {team_tasks[team][level + 1][0]}"
                 else:
-                    await message.answer("Ты прошел все задания!")
+                    next_msg += "\nТы прошел все задания!"
+
+                await message.answer(next_msg)
             else:
                 await message.answer("Неправильный ответ. Попробуй еще раз!")
             return
 
 async def main():
+    """Запуск бота."""
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
