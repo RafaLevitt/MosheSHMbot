@@ -1,66 +1,77 @@
 import logging
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import ParseMode
-from aiogram.contrib.middlewares.logging import LoggingMiddleware
-from aiogram.utils import executor
+import os
+import asyncio
 
-# Токен бота, полученный через BotFather
-API_TOKEN = '7720527686:AAEx12QnjHKTbABTAlFXvpkYG7IYKp1CD8E'
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message, InputFile
+from aiogram.filters import CommandStart
+from dotenv import load_dotenv
 
-# Пароль для админки
-admin_password = 'Sad78Verkiai123'  # Заменить на свой пароль
-
-# Список участников и их статуса (нажали ли они «Готово»)
-users_in_game = {}
-
-# Фразы для выдачи пользователям
-phrases = [
-    "Первая фраза: Успех не приходит случайно.",
-    "Вторая фраза: Верь в себя и твои мечты сбудутся.",
-    "Третья фраза: Путь к успеху начинается с первого шага."
-]
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
-dp.middleware.setup(LoggingMiddleware())
+bot = Bot(token=os.getenv("TELEGRAM_API_TOKEN"))
 
-# Старт игры
-@dp.message_handler(commands=['start'])
-async def start_game(message: types.Message):
+dp = Dispatcher()
+
+# Данные игры
+users_in_game = {}
+team_tasks = {
+    "team1": {1: ("Задание 1 для команды 1", "ответ1"), 2: ("Задание 2 для команды 1", "ответ2"), 3: ("Задание 3 для команды 1", "ответ3")},
+    "team2": {1: ("Задание 1 для команды 2", "ответ1"), 2: ("Задание 2 для команды 2", "ответ2"), 3: ("Задание 3 для команды 2", "ответ3")},
+    "team3": {1: ("Задание 1 для команды 3", "ответ1"), 2: ("Задание 2 для команды 3", "ответ2"), 3: ("Задание 3 для команды 3", "ответ3")},
+    "team4": {1: ("Задание 1 для команды 4", "ответ1"), 2: ("Задание 2 для команды 4", "ответ2"), 3: ("Задание 3 для команды 4", "ответ3")},
+    "team5": {1: ("Задание 1 для команды 5", "ответ1"), 2: ("Задание 2 для команды 5", "ответ2"), 3: ("Задание 3 для команды 5", "ответ3")}
+}
+
+admin_password = os.getenv("ADMIN_PASSWORD")
+
+@dp.message(CommandStart())
+async def start_game(message: Message):
     user_id = message.from_user.id
     if user_id not in users_in_game:
-        users_in_game[user_id] = {'completed': False}
-        await message.answer("Добро пожаловать в игру! Выполни задание и получи фразу.\n\nЗадание 1: [Задача здесь]")
-        await message.answer("После выполнения задания нажми /done.")
+        users_in_game[user_id] = {"team": None, "progress": {1: False, 2: False, 3: False}}
+        await message.answer("Привет! Введи свою команду: team1, team2, team3, team4 или team5")
     else:
         await message.answer("Ты уже в игре!")
 
-# Команда завершения задания
-@dp.message_handler(commands=['done'])
-async def complete_task(message: types.Message):
+@dp.message(F.text.startswith("team"))
+async def choose_team(message: Message):
     user_id = message.from_user.id
-    if user_id in users_in_game:
-        users_in_game[user_id]['completed'] = True
-        # Считаем, сколько пользователей завершили задания
-        completed_count = sum(user['completed'] for user in users_in_game.values())
-        
-        if completed_count == len(users_in_game):  # Все завершили
-            part_index = completed_count - 1
-            phrase = phrases[part_index]
-            await message.answer(f"Все задания выполнены! Вот ваша фраза: {phrase}")
-        else:
-            await message.answer("Задание выполнено. Ожидайте остальных участников.")
+    team = message.text.lower()
 
-# Админ команда для загрузки заданий
-@dp.message_handler(commands=['admin'])
-async def admin_panel(message: types.Message):
-    if message.text.split()[1] == admin_password:  # Проверка пароля
-        await message.answer("Добро пожаловать в админ-панель!")
-        # Здесь можно добавить логику загрузки текстов и картинок
+    if team in team_tasks:
+        users_in_game[user_id]["team"] = team
+        await message.answer(f"Ты в команде {team}. Вот твое первое задание: {team_tasks[team][1][0]}")
     else:
-        await message.answer("Неверный пароль.")
+        await message.answer("Такой команды нет. Выбери team1 - team5.")
 
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+@dp.message()
+async def check_answer(message: Message):
+    user_id = message.from_user.id
+    if user_id not in users_in_game or users_in_game[user_id]["team"] is None:
+        await message.answer("Ты не в игре или не выбрал команду!")
+        return
+
+    team = users_in_game[user_id]["team"]
+    for level in range(1, 4):
+        if not users_in_game[user_id]["progress"][level]:
+            correct_answer = team_tasks[team][level][1]
+            if message.text.lower().strip() == correct_answer.lower():
+                users_in_game[user_id]["progress"][level] = True
+                await message.answer(f"Молодец! Ты прошел {level}-е задание.")
+                if level < 3:
+                    await message.answer(f"Следующее задание: {team_tasks[team][level + 1][0]}")
+                else:
+                    await message.answer("Ты прошел все задания!")
+            else:
+                await message.answer("Неправильный ответ. Попробуй еще раз!")
+            return
+
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
